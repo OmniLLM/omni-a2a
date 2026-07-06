@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local runtime config overrides (per-machine tokens, endpoints, etc.)
+config.local.yaml
