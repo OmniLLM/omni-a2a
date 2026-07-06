@@ -1,0 +1,14 @@
+[Unit]
+Description=Omni A2A Gateway Server (Go)
+After=network.target
+
+[Service]
+Type=simple
+User=jzhu
+ExecStart=/home/jzhu/go/bin/oah serve
+Restart=on-failure
+RestartSec=5
+Environment=PATH=/home/jzhu/.local/bin:/home/jzhu/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target

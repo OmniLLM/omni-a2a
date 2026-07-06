@@ -1,0 +1,50 @@
+# Omni A2A Hub Configuration
+#
+# The hub aggregates one or more upstream A2A agents behind a single endpoint
+# and exposes a composite AgentCard listing every healthy upstream's skills
+# under a namespaced id (`<upstream-name>.<skill-id>`).
+
+server:
+  host: "0.0.0.0"
+  port: 8222
+  public_url: "http://localhost:8222"   # advertised in the composite AgentCard
+
+  # Client-facing bearer key. Required. Send as either:
+  #   Authorization: Bearer <api_key>
+  #   X-API-Key: <api_key>
+  # Public endpoints (/.well-known/*, /health, /metrics) do not require auth.
+  api_key: "ad6450afc4b4990c08dde066bb0a2580d10b8e5ce2fb18126bde95067ed906a1"
+
+  # Admin key. Required for /admin/*. Distinct from api_key so that giving a
+  # client the ability to send messages doesn't grant them registry mutation.
+  admin_key: "CHANGE_ME_admin_secret"
+
+hub:
+  name: "Omni A2A Hub"
+  description: "Aggregator for local and remote A2A agents."
+
+storage:
+  path: "~/.omni-agent-hub/state.db"
+  audit_retention: 10000                # rows kept in audit_log after startup
+
+logging:
+  file: "~/.omni-agent-hub/logs/server.log"
+  level: "info"                         # debug | info | warn | error
+  format: "json"                        # json | text
+
+# Upstream A2A agents to aggregate. Each is contacted at `base_url` and asked
+# for /.well-known/agent-card.json on startup and on admin refresh.
+upstream:
+  - name: "omnilauncher"
+    base_url: "http://localhost:1423"
+    prefix: "@omnilauncher"
+    auth:
+      scheme: "bearer"
+      token: "70020642d1f2bae53d36b7c70cfc8435f9e9bd6e8c3468a298d81be0e5fbd147"
+    enabled: true
+
+  # Example:
+  # - name: "research"
+  #   base_url: "http://localhost:8003"
+  #   auth: { scheme: "none" }
+  #   enabled: true
