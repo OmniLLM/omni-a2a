@@ -609,4 +609,4 @@ MIT
 
 ## Author
 
-James Zhu ([zhujian0805@gmail.com](mailto:zhujian0805@gmail.com)) · [@OmniLLM](https://github.com/OmniLLM)
+[@OmniLLM](https://github.com/OmniLLM)
