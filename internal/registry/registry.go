@@ -209,7 +209,12 @@ func (r *registryImpl) bootstrap(ctx context.Context, cfg []config.UpstreamCfg) 
 			u.BaseURL = c.BaseURL
 			u.Auth = c.Auth
 			u.Prefix = c.Prefix
-			u.Enabled = c.Enabled
+			// If an admin explicitly disabled this upstream (e.g. via
+			// `oah up remove`), config must NOT re-enable it. Only
+			// override Enabled when the row was NOT admin-disabled.
+			if !(u.Source == store.SourceAdmin && !u.Enabled) {
+				u.Enabled = c.Enabled
+			}
 			// Do NOT downgrade source from admin.
 		}
 		u := r.byID[id]

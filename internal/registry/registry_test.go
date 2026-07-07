@@ -341,6 +341,227 @@ func TestAdd_ReAddAfterRemove_ReusesDBID(t *testing.T) {
 	}
 }
 
+func TestBootstrap_DoesNotReEnableAdminRemovedUpstream(t *testing.T) {
+	// Regression: an upstream removed via admin API (soft-delete) would
+	// reappear after restart because bootstrap unconditionally overlaid
+	// config's enabled=true onto the DB row.
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "x", URL: "http://x"}}
+	r := New(db, f)
+
+	// Step 1: Bootstrap with one config-defined upstream.
+	cfg := []config.UpstreamCfg{
+		{Name: "alpha", BaseURL: "http://alpha", Auth: config.AuthConfig{Scheme: "none"}, Enabled: true},
+	}
+	if err := Bootstrap(ctx, r, db, cfg); err != nil {
+		t.Fatalf("Bootstrap 1: %v", err)
+	}
+	if len(r.List()) != 1 {
+		t.Fatalf("expected 1 upstream, got %d", len(r.List()))
+	}
+
+	// Step 2: Admin-add an upstream manually (simulates `oah up add`).
+	admin, err := r.Add(ctx, AddInput{Name: "beta", BaseURL: "http://beta"})
+	if err != nil {
+		t.Fatalf("Add admin upstream: %v", err)
+	}
+	if len(r.List()) != 2 {
+		t.Fatalf("expected 2 upstreams, got %d", len(r.List()))
+	}
+
+	// Step 3: Remove the admin upstream (simulates `oah up remove`).
+	if err := r.Remove(ctx, admin.ID); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if len(r.List()) != 1 {
+		t.Fatalf("expected 1 upstream after remove, got %d", len(r.List()))
+	}
+
+	// Step 4: Re-bootstrap with config that includes the removed upstream
+	// (simulates restart where config.yaml still lists it).
+	r2 := New(db, f)
+	cfg2 := []config.UpstreamCfg{
+		{Name: "alpha", BaseURL: "http://alpha", Auth: config.AuthConfig{Scheme: "none"}, Enabled: true},
+		{Name: "beta", BaseURL: "http://beta", Auth: config.AuthConfig{Scheme: "none"}, Enabled: true},
+	}
+	if err := Bootstrap(ctx, r2, db, cfg2); err != nil {
+		t.Fatalf("Bootstrap 2: %v", err)
+	}
+
+	// The admin-removed upstream must NOT be re-enabled.
+	var betaFound bool
+	for _, u := range r2.List() {
+		if u.Name == "beta" && u.Enabled {
+			betaFound = true
+		}
+	}
+	if betaFound {
+		t.Fatalf("admin-removed upstream 'beta' was re-enabled by bootstrap — bug!")
+	}
+}
+
+func TestBootstrap_ConfigDisabledUpstreamStaysDisabled(t *testing.T) {
+	// Verify that a config entry with enabled=false does get disabled in DB.
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "x", URL: "http://x"}}
+	r := New(db, f)
+
+	cfg := []config.UpstreamCfg{
+		{Name: "gamma", BaseURL: "http://g", Auth: config.AuthConfig{Scheme: "none"}, Enabled: true},
+	}
+	if err := Bootstrap(ctx, r, db, cfg); err != nil {
+		t.Fatalf("Bootstrap 1: %v", err)
+	}
+	if len(r.List()) != 1 {
+		t.Fatalf("expected 1 upstream, got %d", len(r.List()))
+	}
+
+	// Re-bootstrap with enabled=false in config.
+	r2 := New(db, f)
+	cfg2 := []config.UpstreamCfg{
+		{Name: "gamma", BaseURL: "http://g", Auth: config.AuthConfig{Scheme: "none"}, Enabled: false},
+	}
+	if err := Bootstrap(ctx, r2, db, cfg2); err != nil {
+		t.Fatalf("Bootstrap 2: %v", err)
+	}
+
+	// Config-sourced upstreams can be disabled by config.
+	for _, u := range r2.List() {
+		if u.Name == "gamma" && u.Enabled {
+			t.Fatalf("config-disabled upstream 'gamma' should not be enabled")
+		}
+	}
+}
+
+func TestBootstrap_ConfigReEnablesConfigSourced(t *testing.T) {
+	// Config-sourced (not admin) upstreams that were disabled should be
+	// re-enabled when config says enabled=true.
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "x", URL: "http://x"}}
+
+	// Bootstrap with enabled=true → then enabled=false → then enabled=true.
+	r1 := New(db, f)
+	cfg := []config.UpstreamCfg{
+		{Name: "delta", BaseURL: "http://d", Auth: config.AuthConfig{Scheme: "none"}, Enabled: true},
+	}
+	if err := Bootstrap(ctx, r1, db, cfg); err != nil {
+		t.Fatalf("Bootstrap 1: %v", err)
+	}
+
+	// Disable via config.
+	r2 := New(db, f)
+	cfg[0].Enabled = false
+	if err := Bootstrap(ctx, r2, db, cfg); err != nil {
+		t.Fatalf("Bootstrap 2: %v", err)
+	}
+
+	// Re-enable via config — should work because source is config, not admin.
+	r3 := New(db, f)
+	cfg[0].Enabled = true
+	if err := Bootstrap(ctx, r3, db, cfg); err != nil {
+		t.Fatalf("Bootstrap 3: %v", err)
+	}
+	found := false
+	for _, u := range r3.List() {
+		if u.Name == "delta" && u.Enabled {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("config-sourced upstream 'delta' should have been re-enabled by config")
+	}
+}
+
+func TestRemove_ListDoesNotShowRemoved(t *testing.T) {
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "u", URL: "http://u"}}
+	r := New(db, f)
+
+	u1, _ := r.Add(ctx, AddInput{Name: "a", BaseURL: "http://a"})
+	u2, _ := r.Add(ctx, AddInput{Name: "b", BaseURL: "http://b"})
+
+	if len(r.List()) != 2 {
+		t.Fatalf("expected 2, got %d", len(r.List()))
+	}
+
+	if err := r.Remove(ctx, u1.ID); err != nil {
+		t.Fatalf("Remove u1: %v", err)
+	}
+	list := r.List()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 after remove, got %d", len(list))
+	}
+	if list[0].Name != "b" {
+		t.Fatalf("expected 'b' remaining, got %q", list[0].Name)
+	}
+
+	// Remove the other one.
+	if err := r.Remove(ctx, u2.ID); err != nil {
+		t.Fatalf("Remove u2: %v", err)
+	}
+	if len(r.List()) != 0 {
+		t.Fatalf("expected 0 after removing all, got %d", len(r.List()))
+	}
+}
+
+func TestRemove_GetReturnsFalse(t *testing.T) {
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "u", URL: "http://u"}}
+	r := New(db, f)
+
+	u, _ := r.Add(ctx, AddInput{Name: "a", BaseURL: "http://a"})
+	if err := r.Remove(ctx, u.ID); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, ok := r.Get(u.ID); ok {
+		t.Fatalf("Get should return false after Remove")
+	}
+	if _, ok := r.GetByName("a"); ok {
+		t.Fatalf("GetByName should return false after Remove")
+	}
+}
+
+func TestRemove_NonExistent_ReturnsErrNotFound(t *testing.T) {
+	ctx := context.Background()
+	db := openTestStore(t)
+	r := New(db, &fakeFetcher{card: &a2a.AgentCard{Name: "x", URL: "http://x"}})
+
+	err := r.Remove(ctx, "nonexistent-id")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRemove_EmitsEvent(t *testing.T) {
+	ctx := context.Background()
+	db := openTestStore(t)
+	f := &fakeFetcher{card: &a2a.AgentCard{Name: "u", URL: "http://u"}}
+	r := New(db, f)
+
+	u, _ := r.Add(ctx, AddInput{Name: "ev", BaseURL: "http://ev"})
+	drain(r.Events())
+
+	if err := r.Remove(ctx, u.ID); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	select {
+	case ev := <-r.Events():
+		if ev.Kind != EventRemoved {
+			t.Fatalf("expected EventRemoved, got %v", ev.Kind)
+		}
+		if ev.ID != u.ID {
+			t.Fatalf("event ID = %s, want %s", ev.ID, u.ID)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("expected EventRemoved but timed out")
+	}
+}
+
 func TestRefreshCard_UnknownBecomesHealthy_Preserved(t *testing.T) {
 	// Regression guard: the unknown → healthy transition on a successful
 	// first fetch must survive the RefreshCard rewrite.
