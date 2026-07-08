@@ -284,7 +284,7 @@ curl -X POST http://localhost:8222/ \
       "message": {
         "messageId": "msg-001",
         "role": "user",
-        "parts": [{ "text": "ls -la /tmp" }]
+        "parts": [{ "type": "text", "text": "ls -la /tmp" }]
       }
     }
   }'
@@ -301,7 +301,7 @@ Response:
     "contextId": "my-conversation-1",
     "status": { "state": "completed" },
     "artifacts": [
-      { "artifactId": "...", "name": "response", "parts": [{ "text": "total 48\ndrwxrwxrwt ..." }] }
+      { "artifactId": "...", "name": "response", "parts": [{ "type": "text", "text": "total 48\ndrwxrwxrwt ..." }] }
     ]
   }
 }
@@ -319,7 +319,7 @@ curl -X POST http://localhost:8222/a2a/v1/message:send \
   -H "Authorization: Bearer <api_key>" \
   -d '{
     "skillId": "omnilauncher.plugin:tool:shell_exec",
-    "message": { "role": "user", "parts": [{ "text": "ls -la" }] }
+    "message": { "role": "user", "parts": [{ "type": "text", "text": "ls -la" }] }
   }'
 ```
 
@@ -343,7 +343,7 @@ The hub resolves which upstream handles a request in this priority order:
 { "params": { "skillId": "omnilauncher.skill:aws", "contextId": "ctx-42", "message": { ... } } }
 
 // Turn 2 — no skillId needed; contextId sticks to omnilauncher
-{ "params": { "contextId": "ctx-42", "message": { "role": "user", "parts": [{ "text": "now show S3 buckets" }] } } }
+{ "params": { "contextId": "ctx-42", "message": { "role": "user", "parts": [{ "type": "text", "text": "now show S3 buckets" }] } } }
 ```
 
 This guarantees that multi-turn conversations (tasks with `input-required` state) always land on the same upstream, even if that upstream becomes unhealthy — you'll get a clean error rather than a silent upstream switch.
@@ -362,7 +362,7 @@ curl -N -X POST http://localhost:8222/ \
     "method": "message/sendSubscribe",
     "params": {
       "skillId": "omnilauncher.plugin:tool:shell_exec",
-      "message": { "role": "user", "parts": [{ "text": "ls -la" }] }
+      "message": { "role": "user", "parts": [{ "type": "text", "text": "ls -la" }] }
     }
   }'
 ```
