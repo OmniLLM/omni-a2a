@@ -41,7 +41,7 @@ optionally pick a skill, then type a message.`,
 
 			// Interactive mode: fill in missing values.
 			if upstreamFlag == "" || text == "" {
-				fmt.Println("── Send message (interactive) ──")
+				fmt.Println("\n" + bold("Send message") + dim(" (interactive)"))
 
 				if upstreamFlag == "" {
 					u, err := selectUpstream(c)
@@ -52,7 +52,7 @@ optionally pick a skill, then type a message.`,
 						return nil
 					}
 					upstreamFlag = u.ID
-					fmt.Printf("  Selected: %s (%s)\n", u.Name, u.BaseURL)
+					fmt.Printf("  %s %s %s\n", dim("selected"), bold(u.Name), dim("("+u.BaseURL+")"))
 
 					// Offer skill selection if upstream has skills.
 					if u.Skills > 0 {
@@ -74,7 +74,7 @@ optionally pick a skill, then type a message.`,
 				if text == "" {
 					text = readLine("\nMessage: ")
 					if text == "" {
-						fmt.Println("No message provided.")
+						fmt.Println(dim("No message provided."))
 						return nil
 					}
 				}
@@ -84,18 +84,20 @@ optionally pick a skill, then type a message.`,
 				}
 
 				fmt.Println()
-				fmt.Printf("  Upstream : %s\n", upstreamFlag)
+				sum := newKV("")
+				sum.add("Upstream", upstreamFlag)
 				if skillID != "" {
-					fmt.Printf("  Skill    : %s\n", skillID)
+					sum.add("Skill", skillID)
 				}
 				if contextID != "" {
-					fmt.Printf("  Context  : %s\n", contextID)
+					sum.add("Context", contextID)
 				}
-				fmt.Printf("  Message  : %s\n", text)
+				sum.add("Message", text)
+				sum.flush(cmd.OutOrStdout())
 				fmt.Println()
 
 				if !confirm("Send this message?", true) {
-					fmt.Println("Cancelled.")
+					fmt.Println(dim("Cancelled."))
 					return nil
 				}
 			}
@@ -134,27 +136,32 @@ optionally pick a skill, then type a message.`,
 			}
 
 			fmt.Fprintln(out)
-			fmt.Fprintf(out, "  Hub Task ID : %s\n", result["hub_task_id"])
-			fmt.Fprintf(out, "  Context ID  : %s\n", result["context_id"])
-			fmt.Fprintf(out, "  Upstream    : %s\n", result["upstream_id"])
+			sec := newKV("")
+			sec.add("Hub Task ID", result["hub_task_id"])
+			sec.add("Context ID", result["context_id"])
+			sec.add("Upstream", result["upstream_id"])
 
 			// Extract response text from the task result if available.
+			var responseText string
 			if r, ok := result["result"].(map[string]any); ok {
 				if status, ok := r["status"].(map[string]any); ok {
-					fmt.Fprintf(out, "  State       : %s\n", colorStatus(fmt.Sprint(status["state"])))
+					sec.add("State", statusDot(fmt.Sprint(status["state"])))
 					if msg, ok := status["message"].(map[string]any); ok {
 						if parts, ok := msg["parts"].([]any); ok {
 							for _, p := range parts {
 								if pm, ok := p.(map[string]any); ok {
 									if t, ok := pm["text"].(string); ok && t != "" {
-										fmt.Fprintf(out, "\n%s\n",
-											green("  Response: ")+t)
+										responseText = t
 									}
 								}
 							}
 						}
 					}
 				}
+			}
+			sec.flush(out)
+			if responseText != "" {
+				fmt.Fprintf(out, "\n  %s\n  %s\n", bold(green("Response")), responseText)
 			}
 			fmt.Fprintln(out)
 			return nil

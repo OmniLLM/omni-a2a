@@ -59,34 +59,35 @@ func newHealthCmd(opts *Opts) *cobra.Command {
 			}
 
 			// Summary header.
-			fmt.Fprintf(out, "\n%s  Total: %d  %s: %d  %s: %d  %s: %d\n\n",
-				bold("Upstreams"),
-				data.Summary.Total,
-				green("Healthy"), data.Summary.Healthy,
-				red("Unhealthy"), data.Summary.Unhealthy,
-				yellow("Unknown"), data.Summary.Unknown,
-			)
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, summaryLine("Upstreams",
+				summaryPart{"total", data.Summary.Total},
+				summaryPart{green("healthy"), data.Summary.Healthy},
+				summaryPart{red("unhealthy"), data.Summary.Unhealthy},
+				summaryPart{yellow("unknown"), data.Summary.Unknown},
+			))
+			fmt.Fprintln(out)
 
 			if len(data.Upstreams) == 0 {
-				fmt.Fprintln(out, "No upstreams registered.")
+				fmt.Fprintln(out, dim("  No upstreams registered."))
 				return nil
 			}
 
 			// Table.
-			fmt.Fprintf(out, "%-20s %-12s %5s  %-13s %-13s %6s  %s\n",
-				"NAME", "STATUS", "FAILS", "LAST_SUCCESS", "LAST_FAILURE", "SKILLS", "URL")
-			fmt.Fprintln(out, separator(100))
+			tbl := newTable("NAME", "STATUS", "FAILS", "SKILLS", "LAST SUCCESS", "LAST FAILURE", "URL")
+			tbl.alignRight(2, 3)
 			for _, u := range data.Upstreams {
-				fmt.Fprintf(out, "%-20s %-12s %5d  %-13s %-13s %6d  %s\n",
+				tbl.row(
 					u.Name,
-					colorStatus(u.Status),
+					statusDot(u.Status),
 					u.ConsecutiveFailures,
+					u.SkillCount,
 					formatTimeSince(u.LastSuccessAt),
 					formatTimeSince(u.LastFailureAt),
-					u.SkillCount,
 					u.BaseURL,
 				)
 			}
+			tbl.flush(out)
 			fmt.Fprintln(out)
 			return nil
 		},

@@ -11,7 +11,23 @@ import (
 
 // --- ANSI helpers (no external dependencies) ---------------------------------
 
-var useColor = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+// colorDisabled is set by the global --no-color flag (see root.go).
+var colorDisabled bool
+
+// stdoutIsTTY reports whether stdout is an interactive terminal.
+var stdoutIsTTY = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+
+// useColor reports whether ANSI color should be emitted. Color is on only when
+// stdout is a TTY, the NO_COLOR env var is unset, and --no-color was not passed.
+func useColor() bool {
+	if colorDisabled {
+		return false
+	}
+	if _, ok := os.LookupEnv("NO_COLOR"); ok {
+		return false
+	}
+	return stdoutIsTTY
+}
 
 const (
 	ansiReset  = "\033[0m"
@@ -24,42 +40,42 @@ const (
 )
 
 func green(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiGreen + s + ansiReset
 }
 
 func red(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiRed + s + ansiReset
 }
 
 func yellow(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiYellow + s + ansiReset
 }
 
 func cyan(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiCyan + s + ansiReset
 }
 
 func bold(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiBold + s + ansiReset
 }
 
 func dim(s string) string {
-	if !useColor {
+	if !useColor() {
 		return s
 	}
 	return ansiDim + s + ansiReset

@@ -72,7 +72,7 @@ func newUpstreamListCmd(opts *Opts) *cobra.Command {
 		Aliases: []string{"ls"},
 		Short:   "List registered upstream agents",
 		Args:    cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			c := newAdminClient(opts)
 			resp, err := c.do("GET", "/admin/upstreams", nil)
 			if err != nil {
@@ -94,16 +94,19 @@ func newUpstreamListCmd(opts *Opts) *cobra.Command {
 			if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 				return err
 			}
+			w := cmd.OutOrStdout()
 			if len(out) == 0 {
-				fmt.Println("No upstreams registered.")
+				fmt.Fprintln(w, dim("No upstreams registered."))
 				return nil
 			}
-			fmt.Printf("%-24s %-40s %-12s %-9s %s\n", "NAME", "BASE_URL", "PREFIX", "STATUS", "SKILLS")
-			fmt.Println(strings.Repeat("─", 100))
+			fmt.Fprintln(w)
+			tbl := newTable("NAME", "STATUS", "SKILLS", "PREFIX", "BASE_URL")
+			tbl.alignRight(2)
 			for _, u := range out {
-				fmt.Printf("%-24s %-40s %-12s %-9s %d\n",
-					u.Name, u.BaseURL, u.Prefix, u.Status, u.Skills)
+				tbl.row(u.Name, statusDot(u.Status), u.Skills, u.Prefix, u.BaseURL)
 			}
+			tbl.flush(w)
+			fmt.Fprintf(w, "\n%s\n\n", dim(fmt.Sprintf("%d upstream(s)", len(out))))
 			return nil
 		},
 	}
@@ -124,7 +127,7 @@ func newUpstreamAddCmd(opts *Opts) *cobra.Command {
 When called with --url, operates non-interactively.
 When called without flags, enters interactive mode and prompts for each field.`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			name := ""
 			if len(args) > 0 {
 				name = args[0]
@@ -132,7 +135,7 @@ When called without flags, enters interactive mode and prompts for each field.`,
 
 			// Interactive mode: no name arg or no --url flag.
 			if name == "" || url == "" {
-				fmt.Println("── Add upstream (interactive) ──")
+				fmt.Println("\n" + bold("Add upstream") + dim(" (interactive)"))
 				if name == "" {
 					name = readLine("Name: ")
 					if name == "" {
@@ -155,16 +158,18 @@ When called without flags, enters interactive mode and prompts for each field.`,
 				}
 
 				fmt.Println()
-				fmt.Printf("  Name   : %s\n", name)
-				fmt.Printf("  URL    : %s\n", url)
-				fmt.Printf("  Prefix : %s\n", prefix)
-				fmt.Printf("  Scheme : %s\n", scheme)
+				sum := newKV("")
+				sum.add("Name", name)
+				sum.add("URL", url)
+				sum.add("Prefix", prefix)
+				sum.add("Scheme", scheme)
 				if scheme == "bearer" && token != "" {
-					fmt.Printf("  Token  : %s…\n", token[:min(8, len(token))])
+					sum.add("Token", token[:min(8, len(token))]+"…")
 				}
+				sum.flush(cmd.OutOrStdout())
 				fmt.Println()
 				if !confirm("Register this upstream?", true) {
-					fmt.Println("Cancelled.")
+					fmt.Println(dim("Cancelled."))
 					return nil
 				}
 			}
@@ -185,7 +190,7 @@ When called without flags, enters interactive mode and prompts for each field.`,
 			if resp.StatusCode != http.StatusCreated {
 				return httpErr(resp)
 			}
-			fmt.Printf("✓ Registered upstream '%s' (%s)\n", name, url)
+			fmt.Printf("%s Registered upstream %s %s\n", okGlyph(), bold(name), dim("("+url+")"))
 			return nil
 		},
 	}
@@ -229,7 +234,7 @@ upstreams and lets you select one to remove.`,
 				displayName = u.Name
 
 				if !confirm(fmt.Sprintf("Remove upstream '%s' (%s)?", u.Name, u.BaseURL), false) {
-					fmt.Println("Cancelled.")
+					fmt.Println(dim("Cancelled."))
 					return nil
 				}
 			}
@@ -257,7 +262,7 @@ upstreams and lets you select one to remove.`,
 						if resp2.StatusCode != http.StatusNoContent {
 							return httpErr(resp2)
 						}
-						fmt.Printf("✓ Removed upstream '%s'\n", displayName)
+						fmt.Printf("%s Removed upstream %s\n", okGlyph(), bold(displayName))
 						return nil
 					}
 				}
@@ -267,7 +272,7 @@ upstreams and lets you select one to remove.`,
 			if resp.StatusCode != http.StatusNoContent {
 				return httpErr(resp)
 			}
-			fmt.Printf("✓ Removed upstream '%s'\n", displayName)
+			fmt.Printf("%s Removed upstream %s\n", okGlyph(), bold(displayName))
 			return nil
 		},
 	}
@@ -288,7 +293,7 @@ func newUpstreamRefreshCmd(opts *Opts) *cobra.Command {
 			if resp.StatusCode != http.StatusOK {
 				return httpErr(resp)
 			}
-			fmt.Println("✓ Upstream cards refreshed")
+			fmt.Printf("%s Upstream cards refreshed\n", okGlyph())
 			return nil
 		},
 	}
@@ -338,7 +343,7 @@ the current value. Internally removes and re-adds the upstream.`,
 				}
 			}
 
-			fmt.Printf("\n── Edit upstream '%s' ──\n", target.Name)
+			fmt.Printf("\n%s %s\n", bold("Edit upstream"), cyan(target.Name))
 			fmt.Println("Press Enter to keep the current value.")
 
 			newName := readLineDefault("Name", target.Name)
@@ -365,7 +370,7 @@ the current value. Internally removes and re-adds the upstream.`,
 			}
 			fmt.Println()
 			if !confirm("Apply changes?", true) {
-				fmt.Println("Cancelled.")
+				fmt.Println(dim("Cancelled."))
 				return nil
 			}
 
@@ -396,7 +401,7 @@ the current value. Internally removes and re-adds the upstream.`,
 				return fmt.Errorf("removed old upstream but failed to re-add: %w", httpErr(resp2))
 			}
 
-			fmt.Printf("✓ Updated upstream '%s'\n", newName)
+			fmt.Printf("%s Updated upstream %s\n", okGlyph(), bold(newName))
 			return nil
 		},
 	}
@@ -452,45 +457,47 @@ If no argument is given, interactively select from registered upstreams.`,
 			}
 
 			fmt.Fprintln(out)
-			fmt.Fprintf(out, "  ID               : %s\n", data["id"])
-			fmt.Fprintf(out, "  Name             : %s\n", data["name"])
-			fmt.Fprintf(out, "  Base URL         : %s\n", data["base_url"])
-			fmt.Fprintf(out, "  Prefix           : %s\n", data["prefix"])
-			fmt.Fprintf(out, "  Enabled          : %v\n", data["enabled"])
-			fmt.Fprintf(out, "  Source           : %s\n", data["source"])
-			fmt.Fprintf(out, "  Status           : %s\n", colorStatus(fmt.Sprint(data["status"])))
-			fmt.Fprintf(out, "  Consecutive Fails: %v\n", data["consecutive_failures"])
+			sec := newKV("")
+			sec.add("ID", data["id"])
+			sec.add("Name", data["name"])
+			sec.add("Base URL", data["base_url"])
+			sec.add("Prefix", data["prefix"])
+			sec.add("Enabled", data["enabled"])
+			sec.add("Source", data["source"])
+			sec.add("Status", statusDot(fmt.Sprint(data["status"])))
+			sec.add("Consecutive Fails", data["consecutive_failures"])
 
 			if auth, ok := data["auth"].(map[string]any); ok {
-				fmt.Fprintf(out, "  Auth Scheme      : %s\n", auth["scheme"])
+				sec.add("Auth Scheme", auth["scheme"])
 				if hint, ok := auth["token_hint"].(string); ok && hint != "" {
-					fmt.Fprintf(out, "  Token Hint       : %s\n", hint)
+					sec.add("Token Hint", hint)
 				}
 			}
-
 			if ts, ok := data["last_success_at"].(string); ok && ts != "" {
-				fmt.Fprintf(out, "  Last Success     : %s\n", formatTimeSince(ts))
+				sec.add("Last Success", formatTimeSince(ts))
 			}
 			if ts, ok := data["last_failure_at"].(string); ok && ts != "" {
-				fmt.Fprintf(out, "  Last Failure     : %s\n", formatTimeSince(ts))
+				sec.add("Last Failure", formatTimeSince(ts))
 			}
 			if ts, ok := data["card_fetched_at"].(string); ok && ts != "" {
-				fmt.Fprintf(out, "  Card Fetched     : %s\n", formatTimeSince(ts))
+				sec.add("Card Fetched", formatTimeSince(ts))
 			}
+			sec.flush(out)
 
 			if card, ok := data["card"].(map[string]any); ok {
 				fmt.Fprintln(out)
-				fmt.Fprintln(out, "  Agent Card:")
-				fmt.Fprintf(out, "    Name        : %s\n", card["name"])
-				fmt.Fprintf(out, "    Description : %s\n", card["description"])
-				fmt.Fprintf(out, "    URL         : %s\n", card["url"])
-				fmt.Fprintf(out, "    Version     : %s\n", card["version"])
+				cardSec := newKV("Agent Card")
+				cardSec.add("Name", card["name"])
+				cardSec.add("Description", card["description"])
+				cardSec.add("URL", card["url"])
+				cardSec.add("Version", card["version"])
+				cardSec.flush(out)
 
 				if skills, ok := card["skills"].([]any); ok && len(skills) > 0 {
-					fmt.Fprintf(out, "    Skills (%d):\n", len(skills))
+					fmt.Fprintf(out, "\n    %s\n", bold(fmt.Sprintf("Skills (%d)", len(skills))))
 					for _, s := range skills {
 						if sm, ok := s.(map[string]any); ok {
-							fmt.Fprintf(out, "      • %-20s %s\n", sm["id"], sm["name"])
+							fmt.Fprintf(out, "      %s %-20s %s\n", cyan("•"), sm["id"], sm["name"])
 						}
 					}
 				}
@@ -565,21 +572,23 @@ Does NOT modify the cached card or health state.`,
 
 			fmt.Fprintln(out)
 			if result.OK {
-				fmt.Fprintf(out, "  %s Connectivity test passed\n", green("✓"))
+				fmt.Fprintf(out, "  %s %s\n\n", okGlyph(), bold("Connectivity test passed"))
 			} else {
-				fmt.Fprintf(out, "  %s Connectivity test failed\n", red("✗"))
+				fmt.Fprintf(out, "  %s %s\n\n", failGlyph(), bold("Connectivity test failed"))
 			}
-			fmt.Fprintf(out, "  Base URL   : %s\n", result.BaseURL)
-			fmt.Fprintf(out, "  Card URL   : %s\n", result.CardURL)
-			fmt.Fprintf(out, "  Status     : %d\n", result.StatusCode)
-			fmt.Fprintf(out, "  Latency    : %dms\n", result.LatencyMS)
-			fmt.Fprintf(out, "  Has Card   : %v\n", result.HasCard)
+			sec := newKV("")
+			sec.add("Base URL", result.BaseURL)
+			sec.add("Card URL", result.CardURL)
+			sec.add("Status", result.StatusCode)
+			sec.add("Latency", fmt.Sprintf("%dms", result.LatencyMS))
+			sec.add("Has Card", result.HasCard)
 			if result.HasCard {
-				fmt.Fprintf(out, "  Skills     : %d\n", result.SkillCount)
+				sec.add("Skills", result.SkillCount)
 			}
 			if result.Error != "" {
-				fmt.Fprintf(out, "  Error      : %s\n", red(result.Error))
+				sec.add("Error", red(result.Error))
 			}
+			sec.flush(out)
 			fmt.Fprintln(out)
 			return nil
 		},

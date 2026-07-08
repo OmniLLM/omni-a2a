@@ -81,7 +81,7 @@ func newStartCmd(opts *Opts) *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			// Check if already running.
 			if pid, err := readPid(); err == nil && isRunning(pid) {
-				fmt.Printf("oah is already running (pid %d)\n", pid)
+				fmt.Printf("%s oah is already running %s\n", yellow("•"), dim(fmt.Sprintf("(pid %d)", pid)))
 				return nil
 			}
 
@@ -118,9 +118,9 @@ func newStartCmd(opts *Opts) *cobra.Command {
 			// Release the child so it doesn't become a zombie.
 			child.Process.Release()
 
-			fmt.Printf("oah started (pid %d)\n", pid)
-			fmt.Printf("  pid file: %s\n", defaultPidPath())
-			fmt.Printf("  logs:     oah logs -f\n")
+			fmt.Printf("%s oah started %s\n", okGlyph(), dim(fmt.Sprintf("(pid %d)", pid)))
+			fmt.Printf("  %s %s\n", dim("pid file"), defaultPidPath())
+			fmt.Printf("  %s %s\n", dim("logs    "), "oah logs -f")
 			return nil
 		},
 	}
@@ -137,11 +137,11 @@ func newStopCmd(_ *Opts) *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			pid, err := readPid()
 			if err != nil {
-				fmt.Println("oah is not running (no pid file)")
+				fmt.Printf("%s oah is not running %s\n", dim("•"), dim("(no pid file)"))
 				return nil
 			}
 			if !isRunning(pid) {
-				fmt.Printf("oah is not running (stale pid %d)\n", pid)
+				fmt.Printf("%s oah is not running %s\n", dim("•"), dim(fmt.Sprintf("(stale pid %d)", pid)))
 				removePid()
 				return nil
 			}
@@ -169,12 +169,12 @@ func newStopCmd(_ *Opts) *cobra.Command {
 			}
 
 			if isRunning(pid) {
-				fmt.Printf("oah (pid %d) did not exit in time; use --force to kill\n", pid)
+				fmt.Printf("%s oah (pid %d) did not exit in time; use --force to kill\n", yellow("•"), pid)
 				return nil
 			}
 
 			removePid()
-			fmt.Printf("oah stopped (pid %d)\n", pid)
+			fmt.Printf("%s oah stopped %s\n", okGlyph(), dim(fmt.Sprintf("(pid %d)", pid)))
 			return nil
 		},
 	}
@@ -214,16 +214,16 @@ func newStatusCmd(_ *Opts) *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			pid, err := readPid()
 			if err != nil {
-				fmt.Println("oah is not running (no pid file)")
+				fmt.Printf("%s oah is not running %s\n", dim("•"), dim("(no pid file)"))
 				return nil
 			}
 			if !isRunning(pid) {
-				fmt.Printf("oah is not running (stale pid %d)\n", pid)
+				fmt.Printf("%s oah is not running %s\n", dim("•"), dim(fmt.Sprintf("(stale pid %d)", pid)))
 				removePid()
 				return nil
 			}
-			fmt.Printf("oah is running (pid %d)\n", pid)
-			fmt.Printf("  pid file: %s\n", defaultPidPath())
+			fmt.Printf("%s oah is running %s\n", green("•"), dim(fmt.Sprintf("(pid %d)", pid)))
+			fmt.Printf("  %s %s\n", dim("pid file"), defaultPidPath())
 			return nil
 		},
 	}

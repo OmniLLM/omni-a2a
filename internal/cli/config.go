@@ -36,7 +36,7 @@ func newConfigMigrateCmd(opts *Opts) *cobra.Command {
 			if err := config.Save(cfg, path); err != nil {
 				return fmt.Errorf("save %s: %w", path, err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ Migrated %s to the new hub shape.\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s Migrated %s to the new hub shape.\n", okGlyph(), bold(path))
 			return nil
 		},
 	}
@@ -49,10 +49,18 @@ func newConfigShowCmd(opts *Opts) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.LoadOrDefault(opts.ConfigPath)
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"server.host      : %s\nserver.port      : %d\nserver.public_url: %s\nhub.name         : %s\nstorage.path     : %s\nlogging.file     : %s\nupstreams        : %d\n",
-				cfg.Server.Host, cfg.Server.Port, cfg.Server.PublicURL,
-				cfg.Hub.Name, cfg.Storage.Path, cfg.Logging.File, len(cfg.Upstream))
+			out := cmd.OutOrStdout()
+			fmt.Fprintln(out)
+			sec := newKV("Configuration")
+			sec.add("server.host", cfg.Server.Host)
+			sec.add("server.port", cfg.Server.Port)
+			sec.add("server.public_url", cfg.Server.PublicURL)
+			sec.add("hub.name", cfg.Hub.Name)
+			sec.add("storage.path", cfg.Storage.Path)
+			sec.add("logging.file", cfg.Logging.File)
+			sec.add("upstreams", len(cfg.Upstream))
+			sec.flush(out)
+			fmt.Fprintln(out)
 			return nil
 		},
 	}

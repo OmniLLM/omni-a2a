@@ -16,8 +16,9 @@ func NewRootCmd() *cobra.Command {
 	opts := &Opts{}
 
 	var (
-		host string
-		port int
+		host    string
+		port    int
+		noColor bool
 	)
 
 	root := &cobra.Command{
@@ -26,6 +27,12 @@ func NewRootCmd() *cobra.Command {
 		Long:          "oah (Omni A2A Hub) — aggregates multiple upstream A2A agents behind one endpoint.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// Resolve the global --no-color flag before any subcommand output.
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			if noColor {
+				colorDisabled = true
+			}
+		},
 		// Default: no subcommand → run the hub in the foreground.
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runServe(cmd, opts, host, port)
@@ -34,6 +41,7 @@ func NewRootCmd() *cobra.Command {
 
 	root.PersistentFlags().StringVar(&opts.ConfigPath, "config", "", "path to config YAML file")
 	root.PersistentFlags().StringVar(&opts.LogFile, "log-file", "", "override log file path")
+	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable ANSI color output")
 
 	root.Flags().StringVar(&host, "host", "", "bind host (overrides config)")
 	root.Flags().IntVar(&port, "port", 0, "bind port (overrides config)")

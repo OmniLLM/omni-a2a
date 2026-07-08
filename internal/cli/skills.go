@@ -72,21 +72,23 @@ func newSkillsCmd(opts *Opts) *cobra.Command {
 			}
 
 			if len(filtered) == 0 {
-				fmt.Fprintln(out, "No skills found.")
+				fmt.Fprintln(out, dim("No skills found."))
 				return nil
 			}
 
-			fmt.Fprintf(out, "\n%-30s %-20s %-12s %s\n", "SKILL_ID", "NAME", "UPSTREAM", "DESCRIPTION")
-			fmt.Fprintln(out, separator(90))
+			fmt.Fprintln(out)
+			tbl := newTable("SKILL_ID", "NAME", "UPSTREAM", "DESCRIPTION")
 			for _, s := range filtered {
-				desc := s.Description
-				if len(desc) > 40 {
-					desc = desc[:40] + "…"
-				}
-				fmt.Fprintf(out, "%-30s %-20s %-12s %s\n",
-					s.SkillID, s.Name, colorStatus(s.Status)+" "+s.Upstream, desc)
+				desc := strings.ReplaceAll(s.Description, "\n", " ")
+				tbl.row(
+					s.SkillID,
+					s.Name,
+					statusDot(s.Status)+" "+s.Upstream,
+					desc,
+				)
 			}
-			fmt.Fprintf(out, "\n%d skill(s)\n\n", len(filtered))
+			tbl.flush(out)
+			fmt.Fprintf(out, "\n%s\n\n", dim(fmt.Sprintf("%d skill(s)", len(filtered))))
 			return nil
 		},
 	}

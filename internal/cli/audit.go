@@ -3,20 +3,21 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 func newAuditCmd(opts *Opts) *cobra.Command {
 	var (
-		upstream  string
-		taskID    string
-		traceID   string
-		event     string
-		limit     int
-		offset    int
-		detail    bool
-		asJSON    bool
+		upstream string
+		taskID   string
+		traceID  string
+		event    string
+		limit    int
+		offset   int
+		detail   bool
+		asJSON   bool
 	)
 
 	cmd := &cobra.Command{
@@ -74,36 +75,33 @@ func newAuditCmd(opts *Opts) *cobra.Command {
 			}
 
 			if len(data.Items) == 0 {
-				fmt.Fprintln(out, "No audit entries found.")
+				fmt.Fprintln(out, dim("No audit entries found."))
 				return nil
 			}
 
+			fmt.Fprintln(out)
+			var tbl *table
 			if detail {
-				fmt.Fprintf(out, "\n%-13s %-16s %-10s %-10s %-10s %s\n",
-					"TIME", "EVENT", "UPSTREAM", "TASK", "TRACE", "DETAIL")
+				tbl = newTable("TIME", "EVENT", "UPSTREAM", "TASK", "TRACE", "DETAIL")
 			} else {
-				fmt.Fprintf(out, "\n%-13s %-16s %-10s %-10s %-10s\n",
-					"TIME", "EVENT", "UPSTREAM", "TASK", "TRACE")
+				tbl = newTable("TIME", "EVENT", "UPSTREAM", "TASK", "TRACE")
 			}
-			fmt.Fprintln(out, separator(80))
 			for _, e := range data.Items {
 				if detail {
-					d := e.DetailJSON
-					if len(d) > 50 {
-						d = d[:50] + "…"
-					}
-					fmt.Fprintf(out, "%-13s %-16s %-10s %-10s %-10s %s\n",
+					d := strings.ReplaceAll(e.DetailJSON, "\n", " ")
+					tbl.row(
 						formatTimeShort(e.TS), colorEvent(e.Event),
 						shortID(e.UpstreamID), shortID(e.HubTaskID),
 						shortID(e.TraceID), d)
 				} else {
-					fmt.Fprintf(out, "%-13s %-16s %-10s %-10s %-10s\n",
+					tbl.row(
 						formatTimeShort(e.TS), colorEvent(e.Event),
 						shortID(e.UpstreamID), shortID(e.HubTaskID),
 						shortID(e.TraceID))
 				}
 			}
-			fmt.Fprintf(out, "\nShowing %d of %d\n\n", len(data.Items), data.Total)
+			tbl.flush(out)
+			fmt.Fprintf(out, "\n%s\n\n", dim(fmt.Sprintf("Showing %d of %d", len(data.Items), data.Total)))
 			return nil
 		},
 	}

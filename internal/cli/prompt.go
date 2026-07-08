@@ -79,11 +79,11 @@ func confirm(prompt string, def bool) bool {
 // readChoice presents numbered options and returns the selected index (0-based).
 // Returns -1 if the user cancels (empty input or invalid).
 func readChoice(prompt string, options []string) int {
-	fmt.Println(prompt)
+	fmt.Println(bold(prompt))
 	for i, opt := range options {
-		fmt.Printf("  %d) %s\n", i+1, opt)
+		fmt.Printf("  %s %s\n", cyan(fmt.Sprintf("%d)", i+1)), opt)
 	}
-	fmt.Print("Choice: ")
+	fmt.Print(dim("Choice: "))
 	line, _ := stdinReader.ReadString('\n')
 	line = strings.TrimSpace(line)
 	if line == "" {
@@ -118,12 +118,14 @@ func selectUpstream(c *adminClient) (*upstreamEntry, error) {
 		return nil, nil
 	}
 
-	fmt.Println("\nRegistered upstreams:")
+	fmt.Println("\n" + bold("Registered upstreams"))
 	for i, u := range ups {
-		fmt.Printf("  %d) %-20s %s  (%s, %d skills)\n",
-			i+1, u.Name, u.BaseURL, u.Status, u.Skills)
+		fmt.Printf("  %s %s  %s\n",
+			cyan(fmt.Sprintf("%d)", i+1)),
+			padCell(u.Name, 20),
+			dim(fmt.Sprintf("%s · %s · %d skills", u.BaseURL, u.Status, u.Skills)))
 	}
-	fmt.Print("\nSelect upstream [1]: ")
+	fmt.Print("\n" + dim("Select upstream [1]: "))
 	line, _ := stdinReader.ReadString('\n')
 	line = strings.TrimSpace(line)
 	if line == "" {

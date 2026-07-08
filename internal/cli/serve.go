@@ -101,14 +101,19 @@ func runServe(cmd *cobra.Command, opts *Opts, host string, port int) error {
 	})
 
 	// Startup banner (once, via fmt so users see it if not tailing logs).
-	fmt.Fprintln(cmd.OutOrStdout(), "========================================================")
-	fmt.Fprintln(cmd.OutOrStdout(), "                 Omni A2A Hub (Go)")
-	fmt.Fprintln(cmd.OutOrStdout(), "========================================================")
+	bnr := cmd.OutOrStdout()
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	fmt.Fprintln(bnr)
+	fmt.Fprintf(bnr, "  %s %s\n", bold(cyan("◆ Omni A2A Hub")), dim("("+version+")"))
+	fmt.Fprintf(bnr, "  %s\n", dim(separator(42)))
+	fmt.Fprintf(bnr, "  %s  %s\n", dim("listening"), bold("http://"+addr))
+	fmt.Fprintf(bnr, "  %s  %d\n", dim("upstreams"), len(cfg.Upstream))
+	fmt.Fprintf(bnr, "  %s  %s\n", dim("logs     "), logPath)
+	fmt.Fprintln(bnr)
 	slog.Info("hub starting",
 		"host", cfg.Server.Host, "port", cfg.Server.Port,
 		"upstreams", len(cfg.Upstream), "log", logPath, "db", dbPath)
 
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	httpSrv := &http.Server{
 		Addr:              addr,
 		Handler:           tsrv.Handler(),

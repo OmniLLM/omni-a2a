@@ -24,13 +24,13 @@ func newTaskCmd(opts *Opts) *cobra.Command {
 
 func newTaskListCmd(opts *Opts) *cobra.Command {
 	var (
-		state      string
-		upstream   string
-		contextID  string
-		recent     bool
-		limit      int
-		offset     int
-		asJSON     bool
+		state     string
+		upstream  string
+		contextID string
+		recent    bool
+		limit     int
+		offset    int
+		asJSON    bool
 	)
 
 	cmd := &cobra.Command{
@@ -100,35 +100,35 @@ func newTaskListCmd(opts *Opts) *cobra.Command {
 
 			// Summary.
 			ct := data.Counts
-			fmt.Fprintf(out, "\nTasks:  %s:%d  %s:%d  %s:%d  %s:%d  %s:%d  %s:%d  (total: %d)\n\n",
-				cyan("submitted"), ct.Submitted,
-				cyan("working"), ct.Working,
-				yellow("input-req"), ct.InputRequired,
-				green("completed"), ct.Completed,
-				red("failed"), ct.Failed,
-				dim("canceled"), ct.Canceled,
-				ct.Total,
-			)
+			fmt.Fprintln(out)
+			fmt.Fprintln(out, summaryLine("Tasks",
+				summaryPart{cyan("submitted"), ct.Submitted},
+				summaryPart{cyan("working"), ct.Working},
+				summaryPart{yellow("input-req"), ct.InputRequired},
+				summaryPart{green("completed"), ct.Completed},
+				summaryPart{red("failed"), ct.Failed},
+				summaryPart{dim("canceled"), ct.Canceled},
+			))
+			fmt.Fprintln(out)
 
 			if len(data.Items) == 0 {
-				fmt.Fprintln(out, "No tasks found.")
+				fmt.Fprintln(out, dim("  No tasks found."))
 				return nil
 			}
 
-			fmt.Fprintf(out, "%-10s %-14s %-10s %-10s %-13s %s\n",
-				"TASK_ID", "STATE", "UPSTREAM", "CONTEXT", "UPDATED", "UP_TASK")
-			fmt.Fprintln(out, separator(80))
+			tbl := newTable("TASK_ID", "STATE", "UPSTREAM", "CONTEXT", "UPDATED", "UP_TASK")
 			for _, t := range data.Items {
-				fmt.Fprintf(out, "%-10s %-14s %-10s %-10s %-13s %s\n",
+				tbl.row(
 					shortID(t.HubTaskID),
-					colorStatus(t.State),
+					statusDot(t.State),
 					shortID(t.UpstreamID),
 					shortID(t.ContextID),
 					formatTimeShort(t.UpdatedAt),
 					shortID(t.UpstreamTaskID),
 				)
 			}
-			fmt.Fprintf(out, "\nShowing %d of %d\n\n", len(data.Items), data.Total)
+			tbl.flush(out)
+			fmt.Fprintf(out, "\n%s\n\n", dim(fmt.Sprintf("Showing %d of %d", len(data.Items), data.Total)))
 			return nil
 		},
 	}
@@ -199,15 +199,17 @@ If no task-id is provided, interactively select from active tasks.`,
 			}
 
 			fmt.Fprintln(out)
-			fmt.Fprintf(out, "  Hub Task ID     : %s\n", data["hub_task_id"])
-			fmt.Fprintf(out, "  Context ID      : %s\n", data["context_id"])
-			fmt.Fprintf(out, "  Upstream ID     : %s\n", data["upstream_id"])
-			fmt.Fprintf(out, "  Upstream Task ID: %s\n", data["upstream_task_id"])
-			fmt.Fprintf(out, "  State           : %s\n", colorStatus(fmt.Sprint(data["state"])))
-			fmt.Fprintf(out, "  Created         : %s\n", data["created_at"])
-			fmt.Fprintf(out, "  Updated         : %s\n", data["updated_at"])
+			sec := newKV("")
+			sec.add("Hub Task ID", data["hub_task_id"])
+			sec.add("Context ID", data["context_id"])
+			sec.add("Upstream ID", data["upstream_id"])
+			sec.add("Upstream Task ID", data["upstream_task_id"])
+			sec.add("State", statusDot(fmt.Sprint(data["state"])))
+			sec.add("Created", data["created_at"])
+			sec.add("Updated", data["updated_at"])
+			sec.flush(out)
 			if task, ok := data["task"]; ok && task != nil {
-				fmt.Fprintln(out, "\n  Task snapshot:")
+				fmt.Fprintf(out, "\n  %s\n", bold("Task snapshot"))
 				if err := printTaskSnapshot(out, task); err != nil {
 					return err
 				}
@@ -255,7 +257,7 @@ If no task-id is provided, interactively select from active tasks.`,
 			}
 
 			if !yes && !confirm(fmt.Sprintf("Cancel task %s?", displayID), false) {
-				fmt.Println("Cancelled.")
+				fmt.Println(dim("Cancelled."))
 				return nil
 			}
 
@@ -286,7 +288,7 @@ If no task-id is provided, interactively select from active tasks.`,
 				return enc.Encode(data)
 			}
 
-			fmt.Fprintf(out, "✓ Cancel requested for task %s\n", shortID(taskID))
+			fmt.Fprintf(out, "%s Cancel requested for task %s\n", okGlyph(), bold(shortID(taskID)))
 			return nil
 		},
 	}
@@ -338,9 +340,9 @@ func printTaskSnapshot(out io.Writer, task any) error {
 
 	fmt.Fprintf(out, "    id            : %s\n", snap.TaskID)
 	fmt.Fprintf(out, "    contextId     : %s\n", snap.ContextID)
-	fmt.Fprintf(out, "    state         : %s\n", snap.Status.State)
+	fmt.Fprintf(out, "    state         : %s\n", statusDot(snap.Status.State))
 	if snap.Status.Message != nil {
-		fmt.Fprintln(out, "    status message:")
+		fmt.Fprintf(out, "    %s\n", dim("status message:"))
 		fmt.Fprintf(out, "      role         : %s\n", snap.Status.Message.Role)
 		fmt.Fprintf(out, "      messageId    : %s\n", snap.Status.Message.MessageID)
 		for i, p := range snap.Status.Message.Parts {
@@ -353,9 +355,9 @@ func printTaskSnapshot(out io.Writer, task any) error {
 		}
 	}
 	if len(snap.Artifacts) > 0 {
-		fmt.Fprintln(out, "    artifacts:")
+		fmt.Fprintf(out, "    %s\n", dim("artifacts:"))
 		for _, a := range snap.Artifacts {
-			fmt.Fprintf(out, "      - %s\n", a.Name)
+			fmt.Fprintf(out, "      %s %s\n", cyan("•"), a.Name)
 			for i, p := range a.Parts {
 				if p.Text != "" {
 					fmt.Fprintf(out, "        part %d: %s\n", i+1, p.Text)
@@ -364,7 +366,7 @@ func printTaskSnapshot(out io.Writer, task any) error {
 		}
 	}
 	if len(snap.History) > 0 {
-		fmt.Fprintln(out, "    history:")
+		fmt.Fprintf(out, "    %s\n", dim("history:"))
 		for i, m := range snap.History {
 			fmt.Fprintf(out, "      %d. %s\n", i+1, m.Role)
 			for _, p := range m.Parts {
@@ -413,10 +415,12 @@ func selectTask(c *adminClient, includeRecent bool) (*taskEntry, error) {
 
 	opts := make([]string, len(data.Items))
 	for i, t := range data.Items {
-		opts[i] = fmt.Sprintf("%-10s %-14s %-10s %s",
-			shortID(t.HubTaskID), t.State, shortID(t.UpstreamID), formatTimeShort(t.UpdatedAt))
+		opts[i] = fmt.Sprintf("%s  %s  %s  %s",
+			padCell(shortID(t.HubTaskID), 10),
+			padCell(statusDot(t.State), 14),
+			padCell(shortID(t.UpstreamID), 10),
+			formatTimeShort(t.UpdatedAt))
 	}
-	fmt.Println("\n" + strings.Repeat(" ", 6) + fmt.Sprintf("%-10s %-14s %-10s %s", "TASK_ID", "STATE", "UPSTREAM", "UPDATED"))
 	idx := readChoice("Select task:", opts)
 	if idx < 0 {
 		return nil, nil

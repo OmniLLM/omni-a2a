@@ -10,8 +10,8 @@ import (
 
 func newVersionCmd(opts *Opts) *cobra.Command {
 	var (
-		remote  bool
-		asJSON  bool
+		remote bool
+		asJSON bool
 	)
 
 	cmd := &cobra.Command{
@@ -38,16 +38,18 @@ func newVersionCmd(opts *Opts) *cobra.Command {
 				return enc.Encode(result)
 			}
 
-			fmt.Fprintf(out, "oah version: %s\n", bold(cliVer))
+			sec := newKV("")
+			sec.add("oah version", bold(cliVer))
 			if remote {
 				c := newAdminClient(opts)
 				hubVer, err := fetchVersion(c)
 				if err != nil {
-					fmt.Fprintf(out, "hub version: %s\n", red("unavailable ("+err.Error()+")"))
+					sec.add("hub version", red("unavailable ("+err.Error()+")"))
 				} else {
-					fmt.Fprintf(out, "hub version: %s\n", bold(hubVer))
+					sec.add("hub version", bold(hubVer))
 				}
 			}
+			sec.flush(out)
 			return nil
 		},
 	}

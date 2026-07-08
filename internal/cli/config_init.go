@@ -37,7 +37,7 @@ write the default config without prompting (keys are auto-generated).`,
 			if _, err := os.Stat(path); err == nil {
 				if !force {
 					if !confirm(fmt.Sprintf("Config file %s already exists. Overwrite?", path), false) {
-						fmt.Fprintln(out, "Cancelled.")
+						fmt.Fprintln(out, dim("Cancelled."))
 						return nil
 					}
 				}
@@ -52,8 +52,8 @@ write the default config without prompting (keys are auto-generated).`,
 			} else {
 				// Interactive wizard.
 				fmt.Fprintln(out, "")
-				fmt.Fprintln(out, bold("── Omni A2A Hub Configuration Wizard ──"))
-				fmt.Fprintln(out, "Press Enter to accept the default value shown in [brackets].")
+				fmt.Fprintln(out, bold(cyan("◆ Omni A2A Hub"))+" "+bold("Configuration Wizard"))
+				fmt.Fprintln(out, dim("Press Enter to accept the default value shown in [brackets]."))
 				fmt.Fprintln(out, "")
 
 				// Server settings.
@@ -128,19 +128,20 @@ write the default config without prompting (keys are auto-generated).`,
 
 				// Show summary.
 				fmt.Fprintln(out, "")
-				fmt.Fprintln(out, bold("── Summary ──"))
-				fmt.Fprintf(out, "  Server         : %s:%d\n", cfg.Server.Host, cfg.Server.Port)
-				fmt.Fprintf(out, "  Public URL     : %s\n", cfg.Server.PublicURL)
-				fmt.Fprintf(out, "  Hub name       : %s\n", cfg.Hub.Name)
-				fmt.Fprintf(out, "  Storage        : %s\n", cfg.Storage.Path)
-				fmt.Fprintf(out, "  Log file       : %s\n", cfg.Logging.File)
-				fmt.Fprintf(out, "  Log level      : %s\n", cfg.Logging.Level)
-				fmt.Fprintf(out, "  Upstreams      : %d\n", len(cfg.Upstream))
-				fmt.Fprintf(out, "  Config path    : %s\n", path)
+				sum := newKV("Summary")
+				sum.add("Server", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+				sum.add("Public URL", cfg.Server.PublicURL)
+				sum.add("Hub name", cfg.Hub.Name)
+				sum.add("Storage", cfg.Storage.Path)
+				sum.add("Log file", cfg.Logging.File)
+				sum.add("Log level", cfg.Logging.Level)
+				sum.add("Upstreams", len(cfg.Upstream))
+				sum.add("Config path", path)
+				sum.flush(out)
 				fmt.Fprintln(out, "")
 
 				if !confirm("Write this configuration?", true) {
-					fmt.Fprintln(out, "Cancelled.")
+					fmt.Fprintln(out, dim("Cancelled."))
 					return nil
 				}
 			}
@@ -155,7 +156,7 @@ write the default config without prompting (keys are auto-generated).`,
 			if err := config.Save(cfg, path); err != nil {
 				return fmt.Errorf("writing config: %w", err)
 			}
-			fmt.Fprintf(out, "✓ Config written to %s\n", path)
+			fmt.Fprintf(out, "%s Config written to %s\n", okGlyph(), bold(path))
 			return nil
 		},
 	}
